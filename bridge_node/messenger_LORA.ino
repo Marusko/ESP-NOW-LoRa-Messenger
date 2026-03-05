@@ -26,6 +26,17 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 
+// ── Debug logging ─────────────────────────────────────────────
+// Uncomment to enable verbose serial logging and debug commands
+//#define DEBUG
+#ifdef DEBUG
+  #define DLOG(...) Serial.printf(__VA_ARGS__)
+  #define DLOGLN(s) Serial.println(s)
+#else
+  #define DLOG(...) do {} while(0)
+  #define DLOGLN(s) do {} while(0)
+#endif
+
 // ── Display ──────────────────────────────────────────────────
 #define SCREEN_WIDTH  128
 #define SCREEN_HEIGHT  32
@@ -167,7 +178,7 @@ bool hexToBytes(const char* src, int hexLen, uint8_t* dst) {
 // Returns true if "+OK" received within timeout.
 bool atCommand(const char* cmd, unsigned long timeoutMs = 500) {
   LORA_SERIAL.println(cmd);
-  Serial.printf("[AT] >> %s\n", cmd);
+  DLOG("[AT] >> %s\n", cmd);
   unsigned long start = millis();
   String resp = "";
   while (millis() - start < timeoutMs) {
@@ -175,16 +186,16 @@ bool atCommand(const char* cmd, unsigned long timeoutMs = 500) {
       char c = LORA_SERIAL.read();
       resp += c;
       if (resp.endsWith("+OK\r\n") || resp.endsWith("+OK\n")) {
-        Serial.printf("[AT] << +OK\n");
+        DLOGLN("[AT] << +OK");
         return true;
       }
       if (resp.endsWith("+ERR")) {
-        Serial.printf("[AT] << ERR: %s\n", resp.c_str());
+        DLOG("[AT] << ERR: %s\n", resp.c_str());
         return false;
       }
     }
   }
-  Serial.printf("[AT] timeout: %s\n", resp.c_str());
+  DLOG("[AT] timeout: %s\n", resp.c_str());
   return false;
 }
 
@@ -209,8 +220,8 @@ void enqueueAck(const MeshPacket &pkt) {
   ackQueue[ackQueueWrite].pkt    = clean;
   ackQueue[ackQueueWrite].active = true;
   ackQueueWrite = (ackQueueWrite + 1) % ACK_QUEUE_SIZE;
-  Serial.printf("[LoRa] ACK 0x%04X queued (slot %d)\n", pkt.msgId,
-                (ackQueueWrite - 1 + ACK_QUEUE_SIZE) % ACK_QUEUE_SIZE);
+  DLOG("[LoRa] ACK 0x%04X queued (slot %d)\n", pkt.msgId,
+       (ackQueueWrite - 1 + ACK_QUEUE_SIZE) % ACK_QUEUE_SIZE);
 }
 
 // ── Send a MeshPacket over LoRa via AT+SEND ───────────────────
@@ -222,7 +233,7 @@ bool loraSend(const MeshPacket &pkt, int destRylrAddr = RYLR_BCAST_ADDR) {
     if (pkt.type == PKT_ACK || pkt.type == PKT_LORACK) {
       enqueueAck(pkt);
     } else {
-      Serial.printf("[LoRa] loraSend called while busy — skipping\n");
+      DLOGLN("[LoRa] loraSend called while busy — skipping");
     }
     return false;
   }
@@ -267,20 +278,20 @@ void parseRcvLine(const char* line) {
 
   // Validate
   if (actualHexLen != (int)PKT_HEX_LEN || hexLen != (int)PKT_HEX_LEN) {
-    Serial.printf("[LoRa] Bad length: hexLen=%d actual=%d expected=%d\n",
-                  hexLen, actualHexLen, (int)PKT_HEX_LEN);
+    DLOG("[LoRa] Bad length: hexLen=%d actual=%d expected=%d\n",
+         hexLen, actualHexLen, (int)PKT_HEX_LEN);
     return;
   }
 
   int slot = loraRxWrite;
   if (!hexToBytes(hexStart, actualHexLen, (uint8_t*)&loraRxBuf[slot].pkt)) {
-    Serial.println("[LoRa] Hex decode failed");
+    DLOGLN("[LoRa] Hex decode failed");
     return;
   }
   loraRxBuf[slot].rssi = rssi;
   loraRxBuf[slot].used = true;
   loraRxWrite = (loraRxWrite + 1) % LORA_RX_BUF;
-  Serial.printf("[LoRa] RX from RYLR addr %d rssi=%d\n", senderAddr, rssi);
+  DLOG("[LoRa] RX from RYLR addr %d rssi=%d\n", senderAddr, rssi);
 }
 
 // ── Called from loop() to drain LORA_SERIAL byte by byte ─────
@@ -320,7 +331,7 @@ bool loraInit() {
 
   // Test comms
   if (!atCommand("AT", 1000)) {
-    Serial.println("[LoRa] No response to AT");
+    DLOGLN("[LoRa] No response to AT");
     return false;
   }
 
@@ -347,7 +358,7 @@ bool loraInit() {
   // Query firmware version for confirmation
   atCommand("AT+VER?", 500);
 
-  Serial.println("[LoRa] RYLR998 ready");
+  DLOGLN("[LoRa] RYLR998 ready");
   return true;
 }
 
@@ -409,8 +420,8 @@ LoRaPending* allocPending() {
   int oldest = 0;
   for (int i = 1; i < LORA_PENDING_SLOTS; i++)
     if (loraPendingSlots[i].sentAt < loraPendingSlots[oldest].sentAt) oldest = i;
-  Serial.printf("[LoRa] Pending queue full, evicting msgId=0x%04X\n",
-                loraPendingSlots[oldest].pkt.msgId);
+  DLOG("[LoRa] Pending queue full, evicting msgId=0x%04X\n",
+       loraPendingSlots[oldest].pkt.msgId);
   return &loraPendingSlots[oldest];
 }
 
@@ -440,7 +451,7 @@ void registerPeer(const uint8_t* mac, uint8_t meshAddr) {
       memcpy(p.peer_addr, mac, 6);
       p.channel = 0; p.encrypt = false;
       esp_now_add_peer(&p);
-      Serial.printf("[PEER] Registered @%02X\n", meshAddr);
+      DLOG("[PEER] Registered @%02X\n", meshAddr);
       return;
     }
   }
@@ -697,10 +708,10 @@ void tickLoRaRetry() {
         p.sentAt = millis();
         stats.loraRetries++;
         displayDirty = true;
-        Serial.printf("[LoRa] Retry %d msgId=0x%04X\n", p.retries, p.pkt.msgId);
+        DLOG("[LoRa] Retry %d msgId=0x%04X\n", p.retries, p.pkt.msgId);
       }
     } else {
-      Serial.printf("[LoRa] Give up msgId=0x%04X — sending fail ACK\n", p.pkt.msgId);
+      DLOG("[LoRa] Give up msgId=0x%04X — sending fail ACK\n", p.pkt.msgId);
       MeshPacket failAck = {};
       failAck.type  = PKT_ACK;   failAck.msgId = p.pkt.msgId;
       failAck.src   = MY_ADDR;   failAck.dst   = p.pkt.src;
@@ -724,28 +735,28 @@ void processEspNow(const MeshPacket &pkt, const uint8_t* senderMac, int8_t rssi)
 
   // ── ACK / LORACK: deduplicated separately to break ESP-NOW feedback loops ─
   if (pkt.type == PKT_ACK || pkt.type == PKT_LORACK) {
-    Serial.printf("[ESP] ACK/LORACK type=%02X msgId=0x%04X src=@%02X dst=@%02X ttl=%d\n",
+    DLOG("[ESP] ACK/LORACK type=%02X msgId=0x%04X src=@%02X dst=@%02X ttl=%d\n",
                   pkt.type, pkt.msgId, pkt.src, pkt.dst, pkt.ttl);
     // Dedup ACKs separately — prevents ESP-NOW echo loops
     if (isAckDuplicate(pkt.msgId)) {
-      Serial.printf("[ESP] ACK dup dropped 0x%04X\n", pkt.msgId);
+      DLOG("[ESP] ACK dup dropped 0x%04X\n", pkt.msgId);
       return;
     }
     markAckSeen(pkt.msgId);
     LoRaPending *slot = findPending(pkt.msgId);
-    if (slot) { slot->active = false; Serial.printf("[ESP] ACK resolved 0x%04X\n", pkt.msgId); }
+    if (slot) { slot->active = false; DLOG("[ESP] ACK resolved 0x%04X\n", pkt.msgId); }
     uint8_t dm[6];
     if (getMac(pkt.dst, dm)) {
-      Serial.printf("[ESP] ACK dst @%02X is LOCAL → unicast\n", pkt.dst);
+      DLOG("[ESP] ACK dst @%02X is LOCAL → unicast\n", pkt.dst);
       MeshPacket clean = pkt; memset(clean.payload, 0, sizeof(clean.payload));
       espnowUnicast(dm, clean);
     } else {
-      Serial.printf("[ESP] ACK dst @%02X not local → loraSend ttl=%d\n", pkt.dst, pkt.ttl);
+      DLOG("[ESP] ACK dst @%02X not local → loraSend ttl=%d\n", pkt.dst, pkt.ttl);
       if (pkt.ttl > 0) {
         MeshPacket fwd = pkt; memset(fwd.payload, 0, sizeof(fwd.payload)); fwd.ttl--;
         loraSend(fwd);
       } else {
-        Serial.println("[ESP] ACK TTL=0 dropped!");
+        DLOGLN("[ESP] ACK TTL=0 dropped!");
       }
     }
     return;
@@ -753,7 +764,7 @@ void processEspNow(const MeshPacket &pkt, const uint8_t* senderMac, int8_t rssi)
 
   // ── Dedup DATA only ───────────────────────────────────────────
   if (isDuplicate(pkt.msgId)) {
-    Serial.printf("[ESP] Dup 0x%04X\n", pkt.msgId);
+    DLOG("[ESP] Dup 0x%04X\n", pkt.msgId);
     stats.dupsDropped++;
     displayDirty = true;
     return;
@@ -775,7 +786,7 @@ void processEspNow(const MeshPacket &pkt, const uint8_t* senderMac, int8_t rssi)
   uint8_t destMac[6];
   bool forLocal = !isBcast && !forMe && getMac(pkt.dst, destMac);
 
-  Serial.printf("[ESP] DATA src=@%02X dst=@%02X forMe=%d bcast=%d local=%d\n",
+  DLOG("[ESP] DATA src=@%02X dst=@%02X forMe=%d bcast=%d local=%d\n",
                 pkt.src, pkt.dst, forMe, isBcast, forLocal);
 
   if (forMe) {
@@ -814,7 +825,7 @@ void processEspNow(const MeshPacket &pkt, const uint8_t* senderMac, int8_t rssi)
       slot->retries = 0;
     }
   } else {
-    Serial.println("[ESP] loraSend failed — node may retry");
+    DLOGLN("[ESP] loraSend failed — node may retry");
     // Do NOT markSeen — let the node's next retry come through fresh
   }
 }
@@ -823,15 +834,15 @@ void processEspNow(const MeshPacket &pkt, const uint8_t* senderMac, int8_t rssi)
 //  PROCESS INCOMING LoRa PACKET
 // ============================================================
 void processLoRa(const MeshPacket &pkt, int rssi) {
-  Serial.printf("[LoRa] type=%02X msgId=0x%04X src=@%02X dst=@%02X ttl=%d rssi=%d\n",
+  DLOG("[LoRa] type=%02X msgId=0x%04X src=@%02X dst=@%02X ttl=%d rssi=%d\n",
                 pkt.type, pkt.msgId, pkt.src, pkt.dst, pkt.ttl, rssi);
 
   // ── ACK / LORACK: deduplicated to prevent ESP-NOW flood ──────
   if (pkt.type == PKT_ACK || pkt.type == PKT_LORACK) {
-    Serial.printf("[LoRa] ACK/LORACK type=%02X msgId=0x%04X src=@%02X dst=@%02X ttl=%d\n",
+    DLOG("[LoRa] ACK/LORACK type=%02X msgId=0x%04X src=@%02X dst=@%02X ttl=%d\n",
                   pkt.type, pkt.msgId, pkt.src, pkt.dst, pkt.ttl);
     if (isAckDuplicate(pkt.msgId)) {
-      Serial.printf("[LoRa] ACK dup dropped 0x%04X\n", pkt.msgId);
+      DLOG("[LoRa] ACK dup dropped 0x%04X\n", pkt.msgId);
       return;
     }
     markAckSeen(pkt.msgId);
@@ -840,19 +851,19 @@ void processLoRa(const MeshPacket &pkt, int rssi) {
     if (slot) slot->active = false;
     uint8_t dm[6];
     if (getMac(pkt.dst, dm)) {
-      Serial.printf("[LoRa] ACK dst @%02X is LOCAL → unicast\n", pkt.dst);
+      DLOG("[LoRa] ACK dst @%02X is LOCAL → unicast\n", pkt.dst);
       MeshPacket clean = pkt;
       memset(clean.payload, 0, sizeof(clean.payload));
       espnowUnicast(dm, clean);
     } else {
-      Serial.printf("[LoRa] ACK dst @%02X not local → loraSend ttl=%d\n", pkt.dst, pkt.ttl);
+      DLOG("[LoRa] ACK dst @%02X not local → loraSend ttl=%d\n", pkt.dst, pkt.ttl);
       if (pkt.ttl > 0) {
         MeshPacket fwd = pkt;
         memset(fwd.payload, 0, sizeof(fwd.payload));
         fwd.ttl--;
         loraSend(fwd);
       } else {
-        Serial.println("[LoRa] ACK TTL=0 dropped!");
+        DLOGLN("[LoRa] ACK TTL=0 dropped!");
       }
     }
     return;
@@ -860,7 +871,7 @@ void processLoRa(const MeshPacket &pkt, int rssi) {
 
   // ── Dedup DATA only ───────────────────────────────────────────
   if (isDuplicate(pkt.msgId)) {
-    Serial.printf("[LoRa] Dup 0x%04X\n", pkt.msgId);
+    DLOG("[LoRa] Dup 0x%04X\n", pkt.msgId);
     stats.dupsDropped++;
     displayDirty = true;
     return;
@@ -935,7 +946,7 @@ void onEspNowReceive(const esp_now_recv_info_t* info, const uint8_t* data, int l
 void setup() {
   Serial.begin(115200);
   delay(300);
-  Serial.println("\n[BRIDGE] Booting RYLR998 bridge...");
+  DLOGLN("\n[BRIDGE] Booting RYLR998 bridge...");
 
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
@@ -945,7 +956,7 @@ void setup() {
   // Display
   Wire.begin();
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println("[BRIDGE] OLED not found — continuing without display");
+    DLOGLN("[BRIDGE] OLED not found — continuing without display");
   } else {
     display.clearDisplay();
     display.setTextSize(1);
@@ -980,15 +991,17 @@ void setup() {
   bp.channel = 0; bp.encrypt = false;
   esp_now_add_peer(&bp);
   esp_now_register_recv_cb(onEspNowReceive);
+  #ifdef DEBUG
   Serial.print("[BRIDGE] MAC: "); Serial.println(WiFi.macAddress());
-  Serial.printf("[BRIDGE] Mesh addr: @%02X\n", MY_ADDR);
+  DLOG("[BRIDGE] Mesh addr: @%02X\n", MY_ADDR);
+  #endif
 
   // ── RYLR998 ───────────────────────────────────────────────────
   if (!loraInit()) {
     Serial.println("[BRIDGE] RYLR998 init FAILED"); while (true);
   }
 
-  Serial.println("[BRIDGE] Ready.");
+  DLOGLN("[BRIDGE] Ready.");
 }
 
 // ============================================================
@@ -1003,7 +1016,7 @@ void loop() {
   // ── Drain queued ACKs after radio cooldown ────────────────────
   while (ackQueueRead != ackQueueWrite && millis() >= loraTxBusyUntil) {
     if (ackQueue[ackQueueRead].active) {
-      Serial.printf("[LoRa] Sending queued ACK 0x%04X\n",
+      DLOG("[LoRa] Sending queued ACK 0x%04X\n",
                     ackQueue[ackQueueRead].pkt.msgId);
       loraSend(ackQueue[ackQueueRead].pkt);
       ackQueue[ackQueueRead].active = false;
@@ -1078,7 +1091,7 @@ void loop() {
     }
     loraRxRead = (loraRxRead + 1) % LORA_RX_BUF;
   }
-
+#ifdef DEBUG
   // Serial debug
   if (Serial.available()) {
     String cmd = Serial.readStringUntil('\n');
@@ -1110,4 +1123,5 @@ void loop() {
       atCommand(cmd.c_str(), 1000);
     }
   }
+#endif
 }
