@@ -6,7 +6,7 @@
 > [!NOTE]
 > **No warranty:** This project is provided as-is, for educational and hobbyist purposes only. It may not work correctly in all configurations, environments, or hardware combinations. The author takes no responsibility for any damage to hardware, loss of data, or any other issues arising from the use of this project. Use at your own risk.
 
-An off-grid mesh messenger for ESP32, combining **ESP-NOW** for local wireless clusters and **LoRa** (REYAX RYLR998) for long-range backbone links between clusters. Nodes have a 7-button keyboard and SSD1306 OLED display. Messages are delivered with end-to-end acknowledgement across the full mesh.
+An off-grid mesh messenger for ESP32, combining **ESP-NOW** for local wireless clusters and **LoRa** (REYAX RYLR998) for long-range backbone links between clusters. Nodes have a 7-button keyboard or Five Directional Joystick and SSD1306 OLED display. Messages are delivered with end-to-end acknowledgement across the full mesh.
 
 ---
 
@@ -14,7 +14,7 @@ An off-grid mesh messenger for ESP32, combining **ESP-NOW** for local wireless c
 
 - Text messaging between any nodes in the mesh
 - ESP32 Long Range (LR) mode + 20 dBm TX power for extended ESP-NOW range (~1 km LOS)
-- Two-tier ACK protocol — LORACK confirms LoRa handoff, PKT_ACK confirms final delivery
+- Two-tier ACK protocol — PKT_LORACK confirms LoRa handoff, PKT_ACK confirms final delivery
 - Automatic bridge selection based on RSSI beacon scanning
 - TTL-based mesh forwarding with per-type deduplication
 - Retry and graceful failure (`[+]` / `[!]` delivery indicators)
@@ -41,9 +41,9 @@ LICENSE
 
 | Component | Notes |
 |---|---|
-| ESP32 dev board | Any standard 38-pin board |
+| ESP32 dev board | Any standard 30-pin board |
 | SSD1306 128×32 OLED | I2C, address 0x3C |
-| 7× tactile buttons | See pin assignments below |
+| 7× tactile buttons or Five Directional Joystick | See pin assignments below |
 | LED | GPIO 2, optional |
 
 #### End Node Pin Assignments
@@ -66,7 +66,7 @@ LICENSE
 | BTN_RST | 32 |
 | LED | 2 |
 
-All buttons are active-LOW with `INPUT_PULLUP`. Wire each button between its GPIO and GND.
+All buttons are active-LOW with `INPUT_PULLUP`. Wire each button between its GPIO and GND or in case of linked joystick wire COM to GND.
 
 ---
 
@@ -74,7 +74,7 @@ All buttons are active-LOW with `INPUT_PULLUP`. Wire each button between its GPI
 
 | Component | Notes |
 |---|---|
-| ESP32 dev board | Any standard 38-pin board |
+| ESP32 dev board | Any standard 30-pin board |
 | REYAX RYLR998 | LoRa module, UART AT command interface |
 | SSD1306 128×32 OLED | I2C, address 0x3C |
 | LED | GPIO 2, optional |
@@ -174,7 +174,7 @@ ESP-NOW and WiFi are part of the ESP32 Arduino core (no separate install needed)
 | **Detail** | Full message view with scroll for long messages |
 | **Settings** | Set destination address |
 
-### Button Layout
+### Joystick Button Layout
 
 ```
         [  UP  ]
@@ -366,17 +366,16 @@ Links to the components used in this project. Prices and availability may vary b
 ### End Node
 | Component | Link |
 |---|---|
-| ESP32 dev board | <!-- paste link here --> |
-| SSD1306 128×32 OLED (I2C) | <!-- paste link here --> |
-| Tactile push buttons (×7) | <!-- paste link here --> |
+| ESP32 dev board | [SVK](https://www.drotik-elektro.sk/arduino-platforma/1581-vyvojova-doska-esp32-2-4-ghz-dual-mode-wi-fi-bluetooth-modul-anteny.html) [AliExpress](https://www.aliexpress.com/item/1005006422498371.html) |
+| SSD1306 128×32 OLED (I2C) | [SVK](https://www.drotik-elektro.sk/arduino-platforma/1479-iic-i2c-oled-displej-pre-iot-arduino-raspbery-0.91-biely-128-x-32-3-3-v-5v.html) [AliExpress](https://www.aliexpress.com/item/1005008640132638.html) |
+| Five Directional Joystick | [AliExpress](https://www.aliexpress.com/item/1005008023446979.html) |
 
 ### Bridge Node
 | Component | Link |
 |---|---|
-| ESP32 dev board | <!-- paste link here --> |
-| REYAX RYLR998 LoRa module | <!-- paste link here --> |
-| SSD1306 128×32 OLED (I2C) | <!-- paste link here --> |
-| LoRa antenna (868 MHz or 915 MHz) | <!-- paste link here --> |
+| ESP32 dev board | [SVK](https://www.drotik-elektro.sk/arduino-platforma/1581-vyvojova-doska-esp32-2-4-ghz-dual-mode-wi-fi-bluetooth-modul-anteny.html) [AliExpress](https://www.aliexpress.com/item/1005006422498371.html) |
+| SSD1306 128×32 OLED (I2C) | [SVK](https://www.drotik-elektro.sk/arduino-platforma/1479-iic-i2c-oled-displej-pre-iot-arduino-raspbery-0.91-biely-128-x-32-3-3-v-5v.html) [AliExpress](https://www.aliexpress.com/item/1005008640132638.html) |
+| REYAX RYLR998 LoRa module | [Mirifica](https://www.mirifica.de/en/reyax-rylr998_101491_2820/) |
 
 ---
 
