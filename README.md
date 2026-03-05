@@ -309,7 +309,13 @@ The bridge cycles through 4 pages automatically every 5 seconds. Press the BOOT 
 
 ## Serial Debug Commands (Bridge)
 
-Open Serial Monitor at 115200 baud. Type and send:
+Serial debug commands are only available when `DEBUG` is enabled. To enable, uncomment the following line near the top of `messenger_LORA.ino`:
+
+```cpp
+#define DEBUG
+```
+
+Then open Serial Monitor at 115200 baud and type any of the following:
 
 | Command | Output |
 |---|---|
@@ -317,6 +323,8 @@ Open Serial Monitor at 115200 baud. Type and send:
 | `status` | Show all active LoRa pending slots (msgId, retry count) |
 | `beacon` | Manually send a beacon |
 | `AT+...` | Forward raw AT command to RYLR998 |
+
+Enabling `DEBUG` also turns on verbose packet logging for all ESP-NOW and LoRa traffic, useful for tracing message flow and diagnosing delivery failures. In production, leave `DEBUG` commented out — all logging macros compile to nothing with zero overhead.
 
 ---
 
